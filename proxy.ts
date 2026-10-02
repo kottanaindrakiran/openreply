@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/dashboard", "/automations", "/logs", "/settings"];
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/overview",
+  "/campaigns",
+  "/automations",
+  "/logs",
+  "/settings",
+  "/instagram",
+  "/inbox",
+];
 
 function hasSessionCookie(request: NextRequest): boolean {
   return (
@@ -25,7 +34,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isLogin && isAuthenticated) {
+  if (isLogin && isAuthenticated && !request.nextUrl.searchParams.has("callbackUrl")) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -35,9 +44,13 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/overview/:path*",
+    "/campaigns/:path*",
     "/automations/:path*",
     "/logs/:path*",
     "/settings/:path*",
+    "/instagram/:path*",
+    "/inbox/:path*",
     "/login",
   ],
 };

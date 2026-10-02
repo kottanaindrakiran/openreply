@@ -63,15 +63,29 @@ interface CampaignBuilderProps {
 }
 
 function Section({
+  step,
   title,
+  description,
   children,
 }: {
+  step?: string;
   title: string;
+  description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-semibold text-foreground">{title}</h2>
+    <div className="panel p-5 sm:p-6 space-y-4 rounded-xl border border-border bg-surface shadow-2xs">
+      <div className="flex items-start gap-3">
+        {step && (
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-800 text-xs font-bold border border-slate-200">
+            {step}
+          </span>
+        )}
+        <div className="space-y-0.5">
+          <h2 className="text-sm font-bold text-foreground">{title}</h2>
+          {description && <p className="text-xs text-muted">{description}</p>}
+        </div>
+      </div>
       {children}
     </div>
   );
@@ -90,18 +104,20 @@ function Radio({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors ${
-        checked ? "border-accent bg-accent/5" : "border-border hover:border-border-hover"
+      className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left text-sm transition-all ${
+        checked
+          ? "border-[#e1306c] bg-rose-50/40 text-foreground shadow-2xs"
+          : "border-border bg-surface hover:border-slate-300 text-slate-700"
       }`}
     >
       <span
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
-          checked ? "border-accent" : "border-zinc-500"
+        className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border transition-colors ${
+          checked ? "border-[#e1306c] bg-[#e1306c]" : "border-slate-300 bg-white"
         }`}
       >
-        {checked && <span className="h-2 w-2 rounded-full bg-accent" />}
+        {checked && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
       </span>
-      <span className="flex-1 text-foreground">{children}</span>
+      <span className="flex-1 font-medium">{children}</span>
     </button>
   );
 }
@@ -109,21 +125,26 @@ function Radio({
 function Toggle({
   on,
   onToggle,
+  ariaLabel,
 }: {
   on: boolean;
   onToggle: () => void;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-        on ? "bg-accent" : "bg-zinc-300"
+      role="switch"
+      aria-checked={on}
+      aria-label={ariaLabel}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+        on ? "bg-emerald-500" : "bg-slate-200"
       }`}
     >
       <span
-        className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
-          on ? "left-6" : "left-1"
+        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+          on ? "translate-x-5" : "translate-x-0"
         }`}
       />
     </button>
@@ -591,7 +612,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
               type="button"
               onClick={skipRow}
               disabled={saving}
-              className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+              className="rounded-xl border border-border px-3.5 py-2 text-xs font-semibold text-muted hover:text-foreground disabled:opacity-50 transition-colors shadow-2xs"
             >
               {importQueue.length > 1 ? t("Skip") : t("Skip & finish")}
             </button>
@@ -602,7 +623,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+                className="rounded-xl border border-border px-3.5 py-2 text-xs font-semibold text-muted hover:text-foreground disabled:opacity-50 transition-colors shadow-2xs"
               >
                 {t("Stop")}
               </button>
@@ -611,7 +632,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
                 type="button"
                 onClick={() => handleSubmit(true)}
                 disabled={saving}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+                className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-colors shadow-2xs"
               >
                 {t("Go Live")}
               </button>
@@ -620,7 +641,7 @@ export default function CampaignBuilder({ mode, campaignId }: CampaignBuilderPro
             type="button"
             onClick={() => handleSubmit(mode === "new" ? true : isActive)}
             disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-50"
+            className="gradient-cta rounded-xl px-5 py-2 text-xs sm:text-sm font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {saving ? t("Saving…") : mode === "new" ? t("Go Live") : t("Save changes")}
           </button>

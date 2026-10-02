@@ -79,7 +79,22 @@ export async function ensureWorkspaceForUser(
     return existingMembership.workspace;
   }
 
-  const workspaceName = email ? `${email.split("@")[0]}'s workspace` : "My workspace";
+  // If a workspace already exists, attach this owner to it
+  const existingWorkspace = await prisma.workspace.findFirst({
+    orderBy: { createdAt: "asc" },
+  });
+  if (existingWorkspace) {
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: existingWorkspace.id,
+        userId,
+        role: "OWNER",
+      },
+    });
+    return existingWorkspace;
+  }
+
+  const workspaceName = "OpenReply Workspace";
 
   return prisma.workspace.create({
     data: {

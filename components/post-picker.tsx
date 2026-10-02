@@ -192,13 +192,13 @@ export default function PostPicker({
             aria-pressed={isSelected}
             title={isUsed && usedByName ? t("Already used by \"{name}\"", { name: usedByName }) : undefined}
             className={`
-              relative aspect-square rounded overflow-hidden border-2
+              relative aspect-square rounded-xl overflow-hidden border-2 transition-all
               ${
                 isSelected
-                  ? "border-accent"
+                  ? "border-[#e1306c] ring-2 ring-[#e1306c]/20 shadow-xs"
                   : isUsed
-                    ? "border-warning/40 hover:border-warning/60"
-                    : "border-border hover:border-border-hover"
+                    ? "border-amber-300 hover:border-amber-400"
+                    : "border-border hover:border-slate-300"
               }
             `}
           >
@@ -208,7 +208,7 @@ export default function PostPicker({
                 alt={post.caption?.slice(0, 50) ?? t("Instagram post")}
                 loading="lazy"
                 decoding="async"
-                className={`w-full h-full object-cover ${isUsed ? "opacity-75" : ""}`}
+                className={`w-full h-full object-cover transition-transform duration-200 hover:scale-105 ${isUsed ? "opacity-75" : ""}`}
               />
             ) : (
               <div className="w-full h-full bg-surface flex items-center justify-center">
@@ -230,7 +230,7 @@ export default function PostPicker({
               />
             )}
             {isSelected && (
-              <span className="absolute bottom-0 inset-x-0 bg-accent text-white text-xs py-1">
+              <span className="absolute bottom-0 inset-x-0 gradient-cta text-white text-[11px] font-semibold py-0.5 text-center">
                 {t("Selected")}
               </span>
             )}

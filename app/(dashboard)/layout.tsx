@@ -23,22 +23,35 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const workspace = await ensureWorkspaceForUser(
-    session.user.id,
-    session.user.email
-  );
-  const accounts = await prisma.instagramAccount.findMany({
-    where: { workspaceId: workspace.id },
-    orderBy: { connectedAt: "desc" },
-    select: { username: true },
-  });
+  let workspaceName = "OpenReply Workspace";
+  let instagramUsername: string | null = null;
+  let instagramAccountCount = 0;
+
+  try {
+    const workspace = await ensureWorkspaceForUser(
+      session.user.id,
+      session.user.email
+    );
+    workspaceName = workspace.name;
+    const accounts = await prisma.instagramAccount.findMany({
+      where: { workspaceId: workspace.id },
+      orderBy: { connectedAt: "desc" },
+      select: { username: true },
+    });
+    instagramUsername = accounts[0]?.username ?? null;
+    instagramAccountCount = accounts.length;
+  } catch (err) {
+    console.warn("Could not load workspace for user:", err);
+  }
 
   return (
     <I18nProvider locale={locale}>
       <DashboardShell
-        workspaceName={workspace.name}
-        instagramUsername={accounts[0]?.username ?? null}
-        instagramAccountCount={accounts.length}
+        workspaceName={workspaceName}
+        instagramUsername={instagramUsername}
+        instagramAccountCount={instagramAccountCount}
+        userName={session.user.name ?? null}
+        userEmail={session.user.email ?? null}
       >
         {children}
       </DashboardShell>

@@ -3,7 +3,8 @@
 /**
  * Campaigns List Page
  *
- * Shows all campaigns as cards with toggle and delete.
+ * Modern SaaS campaign management: visual campaign cards with live thumbnails,
+ * keyword badges, quick status toggle, analytics summary, and lightbox reel player.
  */
 
 import { useI18n } from "@/lib/i18n/provider";
@@ -11,6 +12,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AccountSelect, { type AccountOption } from "@/components/account-select";
+import StatusBadge from "@/components/status-badge";
 import { readCache, writeCache } from "@/lib/client-cache";
 
 interface Campaign {
@@ -70,12 +72,8 @@ export default function CampaignsPage() {
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState("all");
   const [loading, setLoading] = useState(true);
-  // postId -> current thumbnail URL, fetched live (Instagram URLs expire, so
-  // they are never stored on the campaign).
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-  // postId -> video URL for reels, so a campaign thumbnail can play on click.
   const [videos, setVideos] = useState<Record<string, string>>({});
-  // The reel currently playing in the lightbox (null when closed).
   const [playingVideo, setPlayingVideo] = useState<{
     url: string;
     postUrl: string | null;
@@ -122,9 +120,6 @@ export default function CampaignsPage() {
     return () => window.clearTimeout(timer);
   }, [fetchAutomations]);
 
-  // Fetch fresh post thumbnails (and reel video URLs) for the accounts in view
-  // and map them by postId. Cache-first so they show instantly on a return
-  // visit. Instagram URLs expire, so they are never stored on the campaign.
   useEffect(() => {
     if (automations.length === 0) return;
     let cancelled = false;
@@ -137,13 +132,11 @@ export default function CampaignsPage() {
       thumbs: Record<string, string>;
       videos: Record<string, string>;
     }>(cacheKey, 15 * 60 * 1000);
-    // Hydrating state from cache is a legitimate effect use here.
-    /* eslint-disable react-hooks/set-state-in-effect */
     if (cached.data) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setThumbnails(cached.data.thumbs);
       setVideos(cached.data.videos);
     }
-    /* eslint-enable react-hooks/set-state-in-effect */
 
     Promise.all(
       accountIds.map((accountId) =>
@@ -184,7 +177,6 @@ export default function CampaignsPage() {
     };
   }, [automations]);
 
-  // Close the reel lightbox on Escape.
   useEffect(() => {
     if (!playingVideo) return;
     const onKey = (e: KeyboardEvent) => {
@@ -239,9 +231,6 @@ export default function CampaignsPage() {
     }
   }
 
-  // The copy is made server-side from the stored campaign, so settings this
-  // list never loads (the DM trigger, the follow-up, the link button label)
-  // still come along.
   async function duplicateAutomation(id: string) {
     setMenuOpenId(null);
     try {
@@ -256,11 +245,12 @@ export default function CampaignsPage() {
     }
   }
 
-  if (loading) {
+  if (loading && automations.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-pulse">
+        <div className="h-10 w-48 bg-slate-200 rounded-lg" />
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="panel rounded p-6 h-36" />
+          <div key={i} className="panel p-6 h-36 bg-slate-100/50" />
         ))}
       </div>
     );
@@ -279,17 +269,21 @@ export default function CampaignsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6 animate-fade-in">
+      {/* Top Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            {t("Campaigns")}
+          </h1>
+          <p className="text-sm text-muted mt-0.5">
             {filtered.length !== automations.length
               ? t("{count} of {total} campaigns", { count: filtered.length, total: automations.length })
               : t(automations.length === 1 ? "{count} campaign" : "{count} campaigns", { count: automations.length })}
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
+
+        <div className="flex flex-wrap items-center gap-3">
           {accounts.length > 1 && (
             <AccountSelect
               accounts={accounts}
@@ -297,39 +291,57 @@ export default function CampaignsPage() {
               onChange={handleAccountChange}
             />
           )}
+
           <Link
             href="/campaigns/import"
-            className="flex-1 rounded border border-border px-4 py-2 text-center text-sm font-medium text-muted hover:text-foreground sm:flex-none"
+            className="px-3.5 py-2 rounded-xl border border-border bg-surface hover:bg-slate-50 text-xs font-semibold text-foreground transition-colors shadow-2xs"
           >
             {t("Import")}
           </Link>
+
           <Link
             href="/campaigns/new"
-            className="flex-1 rounded bg-accent px-4 py-2 text-center text-sm font-medium text-white hover:bg-accent-hover sm:flex-none"
+            className="gradient-cta inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-xs"
           >
-            {t("New Campaign")}
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span>{t("New Campaign")}</span>
           </Link>
         </div>
       </div>
 
-      {/* Search + status filter */}
+      {/* Search and Filters Toolbar */}
       {automations.length > 0 && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("Search campaigns by name, keyword, or message…")}
-            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-zinc-500 focus:border-accent/40 focus:outline-none"
-          />
-          <div className="inline-flex shrink-0 rounded-lg bg-surface p-1">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-between">
+          <div className="relative flex-1 max-w-md">
+            <svg
+              className="absolute left-3 top-2.5 h-4 w-4 text-slate-400 pointer-events-none"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" x2="16.65" y1="21" y2="16.65" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("Search campaigns by name, keyword, or message…")}
+              className="w-full rounded-xl border border-border bg-surface pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-slate-400 focus:border-[#e1306c] focus:outline-none transition-all shadow-2xs"
+            />
+          </div>
+
+          <div className="inline-flex rounded-xl bg-slate-100/80 p-1 border border-slate-200/60 self-start sm:self-auto">
             {(["all", "active", "paused"] as const).map((s) => (
               <button
                 key={label(s)}
                 type="button"
                 onClick={() => setStatusFilter(s)}
-                className={`rounded-md px-3 py-1.5 text-sm capitalize transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
                   statusFilter === s
-                    ? "bg-background font-medium text-foreground ring-1 ring-accent/40"
+                    ? "bg-surface text-foreground shadow-2xs"
                     : "text-muted hover:text-foreground"
                 }`}
               >
@@ -340,261 +352,297 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Empty State */}
       {automations.length === 0 && (
-        <div className="panel rounded p-8 text-center sm:p-12">
-          <h3 className="text-lg font-semibold mb-2">{t("No campaigns yet")}</h3>
-          <p className="text-sm text-muted mb-6 max-w-sm mx-auto">
+        <div className="panel p-10 sm:p-14 text-center rounded-2xl">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-50 to-amber-50 border border-rose-100 flex items-center justify-center text-[#e1306c] mb-4 shadow-xs">
+            <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="m13 2-2 2.5V8l2-2 7 7-3.5 3.5-7-7H6L3.5 13 2 11l4.5-4.5" />
+              <path d="m14 14-5 5" />
+              <path d="M4 20h.01" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-bold text-foreground mb-1.5">{t("No campaigns yet")}</h3>
+          <p className="text-sm text-muted mb-6 max-w-md mx-auto">
             {t("Create your first comment-to-DM campaign to turn a post or reel into a measurable conversation flow.")}
           </p>
           <Link
             href="/campaigns/new"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded bg-accent text-sm font-semibold text-white hover:bg-accent-hover transition-colors"
+            className="gradient-cta inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-xs"
           >
-            {t("Create Campaign")}
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            <span>{t("Create Campaign")}</span>
           </Link>
         </div>
       )}
 
-      {/* No matches for the current filter */}
+      {/* No Search Matches */}
       {automations.length > 0 && filtered.length === 0 && (
-        <div className="panel rounded p-8 text-center text-sm text-muted">
+        <div className="panel p-10 text-center text-sm text-muted rounded-xl">
           {t("No campaigns match your search.")}
         </div>
       )}
 
-      {/* Campaign cards */}
-      <div className="space-y-3">
+      {/* Campaign Cards List */}
+      <div className="space-y-3.5">
         {filtered.map((auto) => {
           const videoUrl = auto.postId ? videos[auto.postId] : undefined;
+          const targetDesc = auto.matchAnyPost
+            ? "Any post or reel"
+            : auto.pendingNextReel
+            ? "Next reel"
+            : "Specific post";
+
           return (
-          <div
-            key={auto.id}
-            onClick={() => router.push(`/campaigns/${auto.id}`)}
-            className="panel rounded p-4 hover:border-border-hover transition-all cursor-pointer"
-          >
-            {/* Wraps rather than compressing: on a phone the action buttons drop
-                to their own line instead of squeezing the campaign summary. */}
-            <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-              {auto.postId && thumbnails[auto.postId] && (
-                videoUrl ? (
+            <div
+              key={auto.id}
+              onClick={() => router.push(`/campaigns/${auto.id}`)}
+              className="panel panel-hover p-4 sm:p-5 rounded-xl cursor-pointer"
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Media Thumbnail + Core Info */}
+                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                  {auto.postId && thumbnails[auto.postId] ? (
+                    videoUrl ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPlayingVideo({ url: videoUrl, postUrl: auto.postUrl });
+                        }}
+                        aria-label={t("Play reel preview")}
+                        className="relative shrink-0 group/thumb rounded-lg overflow-hidden border border-border"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumbnails[auto.postId]}
+                          alt={t("Campaign reel")}
+                          className="w-14 h-14 object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                          <svg className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        </div>
+                      </button>
+                    ) : (
+                      <a
+                        href={auto.postUrl ?? "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="shrink-0 rounded-lg overflow-hidden border border-border"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={thumbnails[auto.postId]}
+                          alt={t("Campaign post")}
+                          className="w-14 h-14 object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      </a>
+                    )
+                  ) : (
+                    <div className="h-14 w-14 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+                        <circle cx="9" cy="9" r="2" />
+                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                      </svg>
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-bold text-foreground truncate">
+                        {auto.name}
+                      </h3>
+                      <StatusBadge status={auto.isActive ? "active" : "paused"} size="sm" />
+                      <span className="text-[11px] font-medium text-muted bg-slate-50 border border-slate-200/80 px-2 py-0.5 rounded-full">
+                        @{auto.instagramAccount.username}
+                      </span>
+                      {auto.pendingNextReel && (
+                        <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          {t("Waiting for next reel")}
+                        </span>
+                      )}
+                      {auto.requireFollow && (
+                        <span className="text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                          {t("Follow gate")}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Keywords pills */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-muted font-medium">Trigger:</span>
+                      {auto.matchAnyWord ? (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">
+                          Any comment
+                        </span>
+                      ) : (
+                        auto.keywords.map((kw) => (
+                          <span
+                            key={kw}
+                            className="px-2 py-0.5 rounded-md bg-rose-50 text-[#e1306c] text-xs font-semibold border border-rose-100"
+                          >
+                            {kw}
+                          </span>
+                        ))
+                      )}
+                      <span className="text-muted text-xs">·</span>
+                      <span className="text-xs text-muted truncate">{targetDesc}</span>
+                    </div>
+
+                    {/* DM Snippet */}
+                    <p className="text-xs text-slate-500 line-clamp-1 italic">
+                      &ldquo;{auto.dmMessage}&rdquo;
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right side: Stats & Controls */}
+                <div
+                  className="flex items-center justify-between sm:justify-end gap-4 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Performance metrics */}
+                  <div className="text-right text-xs space-y-0.5 pr-2">
+                    <p className="font-bold text-foreground text-sm">
+                      {auto.analytics?.sent ?? auto._count.dmLogs}{" "}
+                      <span className="font-normal text-xs text-muted">DMs sent</span>
+                    </p>
+                    <p className="text-[11px] text-muted">
+                      {auto.analytics?.ctr ?? 0}% CTR · {auto.analytics?.clicks ?? 0} clicks
+                    </p>
+                  </div>
+
+                  {/* Toggle active switch */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPlayingVideo({ url: videoUrl, postUrl: auto.postUrl });
-                    }}
-                    aria-label={t("Play reel preview")}
-                    className="shrink-0"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={thumbnails[auto.postId]}
-                      alt={t("Campaign reel")}
-                      className="w-12 h-12 rounded object-cover border border-border hover:border-border-hover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  </button>
-                ) : (
-                  <a
-                    href={auto.postUrl ?? "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="shrink-0"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={thumbnails[auto.postId]}
-                      alt={t("Campaign post")}
-                      className="w-12 h-12 rounded object-cover border border-border"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  </a>
-                )
-              )}
-              <div className="min-w-[12rem] flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <h3 className="text-sm font-semibold truncate">{auto.name}</h3>
-                  <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted">
-                    @{auto.instagramAccount.username}
-                  </span>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      auto.isActive
-                        ? "bg-success/10 text-success"
-                        : "bg-zinc-500/10 text-muted"
-                    }`}
-                  >
-                    {auto.isActive ? t("Active") : t("Paused")}
-                  </span>
-                  {auto.pendingNextReel && (
-                    <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-warning">
-                      {t("Waiting for next reel")}
-                    </span>
-                  )}
-                  {auto.requireFollow && (
-                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                      {t("Follow gate")}
-                    </span>
-                  )}
-                  {auto.trackedLinks.length >= 2 && (
-                    <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                      {t("2 links")}
-                    </span>
-                  )}
-                </div>
-
-                {/* Keywords */}
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {auto.keywords.map((kw) => (
-                    <span
-                      key={kw}
-                      className="px-2 py-0.5 rounded-md bg-accent/10 text-accent text-xs font-medium border border-accent/10"
-                    >
-                      {kw}
-                    </span>
-                  ))}
-                </div>
-
-                {/* DM preview */}
-                <p className="text-sm text-muted truncate">&ldquo;{auto.dmMessage}{t("”")}</p>
-
-                {/* Tracked link sent */}
-                {auto.trackedLinks[0]?.trackedUrl && (
-                  <p className="mt-2 truncate font-mono text-xs text-zinc-500">
-                    {auto.trackedLinks[0].trackedUrl}
-                  </p>
-                )}
-
-                {/* Stats */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-3 text-xs text-zinc-500">
-                  <span className="font-medium text-foreground">
-                    {auto._count.dmLogs} {t("runs")}
-                  </span>
-                  <span>·</span>
-                  <span className="font-medium text-foreground">
-                    {auto.analytics.ctr}{t("% CTR")}
-                  </span>
-                  <span>·</span>
-                  <span>{auto.analytics.sent} {t("sent")}</span>
-                  <span>·</span>
-                  <span>{auto.analytics.skipped} {t("skipped")}</span>
-                  <span>·</span>
-                  <span>{auto.analytics.failed} {t("failed")}</span>
-                  <span>·</span>
-                  <span>{auto.analytics.clicks} {t("clicks")}</span>
-                </div>
-
-                {auto.analytics.topKeywords.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {auto.analytics.topKeywords.map((keyword) => (
-                      <span
-                        key={keyword.keyword}
-                        className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-muted"
-                      >
-                        {keyword.keyword}: {keyword.count}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div
-                className="ml-auto flex items-center gap-2"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Copy reel URL */}
-                {auto.postUrl && (
-                  <button
-                    onClick={() => void copyReelUrl(auto)}
-                    className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:border-border-hover hover:text-foreground"
-                  >
-                    {copiedId === auto.id ? t("Copied!") : t("Copy URL")}
-                  </button>
-                )}
-                {/* Toggle */}
-                <button
-                  onClick={() => toggleActive(auto.id, auto.isActive)}
-                  className={`
-                    relative w-11 h-6 rounded-full transition-colors
-                    ${auto.isActive ? "bg-accent" : "bg-zinc-300"}
-                  `}
-                >
-                  <span
+                    onClick={() => toggleActive(auto.id, auto.isActive)}
+                    role="switch"
+                    aria-checked={auto.isActive}
+                    aria-label={`Toggle campaign ${auto.name}`}
                     className={`
-                      absolute top-1 w-4 h-4 rounded-full bg-white transition-transform shadow-sm
-                      ${auto.isActive ? "left-6" : "left-1"}
+                      relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none
+                      ${auto.isActive ? "bg-emerald-500" : "bg-slate-200"}
                     `}
-                  />
-                </button>
-
-                {/* Kebab menu */}
-                <div className="relative">
-                  <button
-                    onClick={() =>
-                      setMenuOpenId((cur) => (cur === auto.id ? null : auto.id))
-                    }
-                    aria-label={t("More actions")}
-                    className="px-2 py-1 rounded text-lg leading-none text-muted hover:text-foreground"
                   >
-                    ⋯
+                    <span
+                      className={`
+                        pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out
+                        ${auto.isActive ? "translate-x-5" : "translate-x-0"}
+                      `}
+                    />
                   </button>
-                  {menuOpenId === auto.id && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-10"
-                        onClick={() => setMenuOpenId(null)}
-                      />
-                      <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
-                        <button
-                          onClick={() => void duplicateAutomation(auto.id)}
-                          className="block w-full px-3 py-2 text-left text-sm text-foreground hover:bg-surface-hover"
-                        >
-                          {t("Duplicate")}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setMenuOpenId(null);
-                            void deleteAutomation(auto.id);
-                          }}
-                          className="block w-full px-3 py-2 text-left text-sm text-error hover:bg-surface-hover"
-                        >
-                          {t("Delete")}
-                        </button>
-                      </div>
-                    </>
-                  )}
+
+                  {/* Kebab action menu */}
+                  <div className="relative">
+                    <button
+                      onClick={() =>
+                        setMenuOpenId((cur) => (cur === auto.id ? null : auto.id))
+                      }
+                      aria-label={t("More actions")}
+                      className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-slate-100 transition-colors"
+                    >
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="1" />
+                        <circle cx="12" cy="5" r="1" />
+                        <circle cx="12" cy="19" r="1" />
+                      </svg>
+                    </button>
+
+                    {menuOpenId === auto.id && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-20"
+                          onClick={() => setMenuOpenId(null)}
+                        />
+                        <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-border bg-surface p-1.5 shadow-lg space-y-0.5">
+                          <Link
+                            href={`/campaigns/${auto.id}/edit`}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs font-medium text-foreground rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            <svg className="h-3.5 w-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                            <span>{t("Edit campaign")}</span>
+                          </Link>
+
+                          <button
+                            onClick={() => void duplicateAutomation(auto.id)}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs font-medium text-foreground rounded-lg hover:bg-slate-50 transition-colors"
+                          >
+                            <svg className="h-3.5 w-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            </svg>
+                            <span>{t("Duplicate")}</span>
+                          </button>
+
+                          {auto.postUrl && (
+                            <button
+                              onClick={() => void copyReelUrl(auto)}
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs font-medium text-foreground rounded-lg hover:bg-slate-50 transition-colors"
+                            >
+                              <svg className="h-3.5 w-3.5 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                              </svg>
+                              <span>{copiedId === auto.id ? t("Copied!") : t("Copy URL")}</span>
+                            </button>
+                          )}
+
+                          <div className="border-t border-slate-100 my-1" />
+
+                          <button
+                            onClick={() => {
+                              setMenuOpenId(null);
+                              void deleteAutomation(auto.id);
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs font-medium text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                          >
+                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            </svg>
+                            <span>{t("Delete")}</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
           );
         })}
       </div>
 
-      {/* Reel lightbox */}
+      {/* Reel Lightbox Modal */}
       {playingVideo && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4"
           onClick={() => setPlayingVideo(null)}
         >
           <div
             className="relative flex max-w-full flex-col items-end gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-xs font-semibold">
               {playingVideo.postUrl && (
                 <a
                   href={playingVideo.postUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-zinc-300 hover:text-white"
+                  className="text-slate-300 hover:text-white"
                 >
                   {t("Open on Instagram")}
                 </a>
@@ -602,7 +650,7 @@ export default function CampaignsPage() {
               <button
                 type="button"
                 onClick={() => setPlayingVideo(null)}
-                className="text-zinc-300 hover:text-white"
+                className="text-slate-300 hover:text-white"
               >
                 {t("Close")}
               </button>
@@ -613,7 +661,7 @@ export default function CampaignsPage() {
               autoPlay
               loop
               playsInline
-              className="max-h-[80vh] max-w-full rounded-lg"
+              className="max-h-[80vh] max-w-full rounded-2xl shadow-2xl"
             />
           </div>
         </div>

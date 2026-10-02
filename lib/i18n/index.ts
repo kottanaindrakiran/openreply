@@ -52,11 +52,13 @@ const labels: Record<string, StaticMessageKey> = {
 };
 
 export function createI18n(locale: Locale) {
-  function t<K extends MessageKey>(key: K, ...args: MessageArgs<K>): string {
-    const message = locale === "zh-TW" ? zhTW[key] : key;
-    const values = args[0] as Record<string, string | number> | undefined;
+  function t<K extends MessageKey>(key: K, ...args: MessageArgs<K>): string;
+  function t(key: string, values?: Record<string, string | number>): string;
+  function t(key: string, values?: Record<string, string | number>): string {
+    const message = (locale === "zh-TW" && Object.hasOwn(zhTW, key)) ? (zhTW as Record<string, string>)[key] : key;
+    if (!values) return message;
     return message.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
-      values?.[name] === undefined ? placeholder : String(values[name]),
+      values[name] === undefined ? placeholder : String(values[name]),
     );
   }
 

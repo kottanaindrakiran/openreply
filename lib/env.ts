@@ -102,6 +102,7 @@ export const serverEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
   ENCRYPTION_KEY: z.string().regex(HEX_32_BYTE),
+  ADMIN_PASSWORD: z.string().min(1).optional(),
 });
 
 export function validateCoreEnv() {

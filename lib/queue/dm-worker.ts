@@ -849,13 +849,17 @@ async function sendFollowRecheckAck({
       "NX"
     );
     if (first !== "OK") return;
-    await sendPostbackOnce({
-      // Its own id: the tap's id is claimed later by the link or prompt that
-      // the re-check sends, and claiming it here would suppress that message.
-      operationId: operationId ? `${operationId}:ack` : null,
-      send: () =>
-        sendDirectMessage({ context, instagramAccountId, userId, message }),
-    });
+    if (operationId) {
+      await sendPostbackOnce({
+        // Its own id: the tap's id is claimed later by the link or prompt that
+        // the re-check sends, and claiming it here would suppress that message.
+        operationId: `${operationId}:ack`,
+        send: () =>
+          sendDirectMessage({ context, instagramAccountId, userId, message }),
+      });
+    } else {
+      await sendDirectMessage({ context, instagramAccountId, userId, message });
+    }
   } catch (error) {
     console.log(
       "[DM Worker] Failed to send follow re-check acknowledgement:",
