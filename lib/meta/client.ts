@@ -1,7 +1,11 @@
 import { getMetaGraphApiVersion, requireEnv } from "@/lib/env";
 
+function instagramGraphRoot() {
+  return "https://graph.instagram.com";
+}
+
 function instagramGraphBase() {
-  return `https://graph.instagram.com/${getMetaGraphApiVersion()}`;
+  return `${instagramGraphRoot()}/${getMetaGraphApiVersion()}`;
 }
 
 function facebookGraphBase() {
@@ -782,7 +786,9 @@ export async function getFollowerCountSeries(
 export async function getLongLivedToken(
   shortLivedToken: string
 ): Promise<{ accessToken: string; expiresIn: number }> {
-  const url = new URL(`${instagramGraphBase()}/access_token`);
+  // Long-lived token exchange lives on the unversioned graph.instagram.com/access_token
+  // endpoint. Versioned prefixes like /v25.0/access_token are blocked by Meta with OAuthException.
+  const url = new URL(`${instagramGraphRoot()}/access_token`);
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", requireEnv("INSTAGRAM_APP_SECRET"));
   url.searchParams.set("access_token", shortLivedToken);
@@ -799,7 +805,8 @@ export async function getLongLivedToken(
 export async function refreshLongLivedToken(
   longLivedToken: string
 ): Promise<{ accessToken: string; expiresIn: number }> {
-  const url = new URL(`${instagramGraphBase()}/refresh_access_token`);
+  // Token refresh lives on the unversioned graph.instagram.com/refresh_access_token endpoint.
+  const url = new URL(`${instagramGraphRoot()}/refresh_access_token`);
   url.searchParams.set("grant_type", "ig_refresh_token");
   url.searchParams.set("access_token", longLivedToken);
 
