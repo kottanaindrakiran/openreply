@@ -794,6 +794,45 @@ export async function getLongLivedToken(
   url.searchParams.set("access_token", shortLivedToken);
 
   const response = await fetch(url.toString());
+
+  if (!response.ok) {
+    const rawData = await response.clone().json().catch(() => null);
+    const err = rawData?.error;
+    console.error("[Meta Token Exchange] Diagnostic Log:", {
+      appId: process.env.INSTAGRAM_APP_ID ?? "unset",
+      endpoint: url.origin + url.pathname,
+      grantType: "ig_exchange_token",
+      status: response.status,
+      tokenLength: shortLivedToken.length,
+      tokenPrefix: shortLivedToken.slice(0, 4) + "...",
+      metaErrorCode: err?.code ?? response.status,
+      metaErrorSubcode: err?.error_subcode ?? "-",
+      metaErrorType: err?.type ?? "-",
+      metaErrorMessage: err?.message ?? "Unknown error",
+      fbTraceId: err?.fbtrace_id ?? "-",
+    });
+
+    // If INSTAGRAM_APP_SECRET is rejected and FACEBOOK_APP_SECRET is present and distinct,
+    // try FACEBOOK_APP_SECRET in case this app registration requires the primary secret.
+    const fbSecret = process.env.FACEBOOK_APP_SECRET;
+    if (fbSecret && fbSecret !== process.env.INSTAGRAM_APP_SECRET) {
+      const fbUrl = new URL(`${instagramGraphRoot()}/access_token`);
+      fbUrl.searchParams.set("grant_type", "ig_exchange_token");
+      fbUrl.searchParams.set("client_secret", fbSecret);
+      fbUrl.searchParams.set("access_token", shortLivedToken);
+
+      const fbResponse = await fetch(fbUrl.toString());
+      if (fbResponse.ok) {
+        console.log("[Meta Token Exchange] Succeeded using primary app secret fallback");
+        const data = await fbResponse.json();
+        return {
+          accessToken: data.access_token,
+          expiresIn: data.expires_in ?? 5184000,
+        };
+      }
+    }
+  }
+
   const data = await handleResponse<TokenResponse>(response);
 
   return {
