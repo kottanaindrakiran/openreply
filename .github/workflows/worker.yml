@@ -1,0 +1,48 @@
+name: DM Worker
+
+on:
+  schedule:
+    # Trigger approximately every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: openreply-worker
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    name: Run Long-Running Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Run worker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'https://openreply-iota-rosy.vercel.app' }}
+          WORKER_MAX_RUNTIME_MS: "20400000" # 5 hours 40 minutes (exits cleanly before GitHub 6h ceiling)
+          NODE_ENV: production
+        run: |
+          # The worker runs continuously and shuts down gracefully after WORKER_MAX_RUNTIME_MS.
+          # As a secondary safety net, timeout sends SIGTERM at 350m (5h 50m).
+          timeout --preserve-status -s SIGTERM 350m npm run worker || [ $? -eq 124 ] || [ $? -eq 143 ]

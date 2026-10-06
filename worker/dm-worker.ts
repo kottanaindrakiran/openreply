@@ -51,6 +51,19 @@ async function poll() {
 setTimeout(() => void poll(), 10_000);
 const pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
 
+const MAX_RUNTIME_MS = process.env.WORKER_MAX_RUNTIME_MS
+  ? Number(process.env.WORKER_MAX_RUNTIME_MS)
+  : undefined;
+
+if (MAX_RUNTIME_MS && MAX_RUNTIME_MS > 0) {
+  setTimeout(() => {
+    console.log(
+      `[DM Worker] Max runtime of ${MAX_RUNTIME_MS}ms reached, closing worker`
+    );
+    void shutdown("TIMEOUT");
+  }, MAX_RUNTIME_MS);
+}
+
 async function shutdown(signal: string) {
   console.log(`[DM Worker] ${signal} received, closing worker`);
   clearInterval(heartbeatTimer);
@@ -61,3 +74,4 @@ async function shutdown(signal: string) {
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
